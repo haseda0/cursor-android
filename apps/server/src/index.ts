@@ -1,62 +1,61 @@
-import 'express-async-errors'
-import express, { Express, Request, Response, NextFunction } from 'express'
+import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
-import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
+import { rateLimit } from 'express-rate-limit'
+import aiRouter from './routes/ai.routes'
+import projectRouter from './routes/project.routes'
+import userRouter from './routes/user.routes'
+import { errorHandler, notFound } from './middleware/error.middleware'
 import { logger } from './utils/logger'
-import { errorHandler } from './middleware/errorHandler'
-import { authRouter } from './routes/auth'
-import { projectRouter } from './routes/projects'
-import { aiRouter } from './routes/ai'
-import { fileRouter } from './routes/files'
 
 dotenv.config()
 
-const app: Express = express()
+const app = express()
 const PORT = process.env.PORT || 3001
 
-// Security middleware
+// Security & Middleware
 app.use(helmet())
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: process.env.CLIENT_URL || 'http://localhost:3000',
   credentials: true,
 }))
 
-// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
-  message: 'Too many requests from this IP',
+  message: 'Terlalu banyak request, coba lagi nanti',
 })
 app.use('/api/', limiter)
 
-// Body parser
-app.use(express.json({ limit: '50mb' }))
-app.use(express.urlencoded({ limit: '50mb', extended: true }))
+app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ limit: '10mb', extended: true }))
+
+// Logger middleware
+app.use((req, res, next) => {
+  logger.info(`${req.method} ${req.path}`)
+  next()
+})
 
 // Routes
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
-})
-
-app.use('/api/auth', authRouter)
-app.use('/api/projects', projectRouter)
 app.use('/api/ai', aiRouter)
-app.use('/api/files', fileRouter)
+app.use('/api/projects', projectRouter)
+app.use('/api/users', userRouter)
 
-// 404 handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ message: 'Route not found' })
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() })
 })
+
+// 404
+app.use(notFound)
 
 // Error handler
 app.use(errorHandler)
 
-// Start server
 app.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT}`)
-  logger.info(`📝 Environment: ${process.env.NODE_ENV || 'development'}`)
+  logger.info(`Environment: ${process.env.NODE_ENV}`)
 })
 
 export default app
