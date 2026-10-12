@@ -1,0 +1,19 @@
+{
+  "name": "cursor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered code editor for web, mobile, and desktop",
+  "scripts": {
+    "dev": "cd apps/web && npm run dev",
+    "build": "cd apps/web && npm run build",
+    "start": "cd apps/web && npm run start",
+    "web:dev": "cd apps/web && npm run dev",
+    "web:build": "cd apps/web && npm run build",
+    "lint": "cd apps/web && npm run lint"
+  },
+  "workspaces": [
+    "apps/web",
+    "apps/server",
+    "apps/mobile"
+  ]
+}

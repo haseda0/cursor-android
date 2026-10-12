@@ -1,37 +1,21 @@
-import type { Metadata, Viewport } from 'next'
-import { ToastContainer } from 'react-toastify'
-import 'react-toastify/dist/ReactToastify.css'
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
 import './globals.css'
 
-const APP_NAME = 'Cursor Android - AI Code Editor'
-const APP_DESCRIPTION = 'AI-powered code editor with intelligent features'
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: APP_NAME,
-  description: APP_DESCRIPTION,
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'black-translucent',
-    title: APP_NAME,
-  },
-  formatDetection: {
-    telephone: false,
-  },
+  title: 'Cursor - AI Code Editor',
+  description: 'The next-generation code editor powered by AI. Works on mobile, web, and desktop.',
   openGraph: {
+    title: 'Cursor - AI Code Editor',
+    description: 'The next-generation code editor powered by AI.',
+    url: 'https://cursor-ai.vercel.app',
     type: 'website',
-    locale: 'en_US',
-    url: 'https://cursor-android.vercel.app',
-    title: APP_NAME,
-    description: APP_DESCRIPTION,
   },
-}
-
-export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  themeColor: '#0f172a',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
@@ -42,27 +26,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content={APP_NAME} />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+        <meta name="theme-color" content="#0f172a" />
         <link rel="icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className="bg-slate-950 text-slate-100">
+      <body className={inter.className}>
         {children}
-        <ToastContainer
-          position="bottom-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={true}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-          theme="dark"
-        />
       </body>
     </html>
   )

@@ -1,6 +1,16 @@
 [build]
-  command = "npm install && npm run build"
-  publish = ".next"
+  command = "npm install && npm run web:build"
+  publish = "apps/web/.next"
+  functions = "netlify/functions"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[dev]
+  command = "npm run web:dev"
+  port = 3000
