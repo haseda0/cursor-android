@@ -1,5 +1,7 @@
+'use client'
+
 import React, { useState, useRef, useEffect } from 'react'
-import { Send, Paperclip, Settings, Code2, Copy, Check } from 'lucide-react'
+import { Send, Paperclip, Settings, Code2, Copy, Check, Zap, Sparkles, RotateCw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 interface Message {
@@ -7,23 +9,31 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   timestamp: Date
-  language?: string
+  type?: 'chat' | 'analysis' | 'generation' | 'explanation'
 }
+
+type ActionMode = 'chat' | 'analyze' | 'generate' | 'explain'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 const Editor = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       role: 'assistant',
-      content: 'Halo! Saya adalah AI Code Assistant Anda. Tanya apa saja tentang coding, debugging, atau generate code baru. Bagaimana saya bisa membantu?',
+      content: '🚀 Selamat datang di Cursor AI! Saya adalah AI Code Assistant dengan OpenAI Integration yang real. Apa yang bisa saya bantu?',
       timestamp: new Date(),
+      type: 'chat',
     },
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [code, setCode] = useState('// Tulis kode kamu di sini\nfunction hello() {\n  console.log("Hello, World!");\n}')
+  const [code, setCode] = useState('// Tulis kode kamu di sini\nfunction hello() {\n  console.log("Hello, Cursor AI!");\n}')
   const [copied, setCopied] = useState(false)
+  const [actionMode, setActionMode] = useState<ActionMode>('chat')
+  const [language, setLanguage] = useState('javascript')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [stats, setStats] = useState({ messages: 0, analyzed: 0, generated: 0 })
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -33,37 +43,30 @@ const Editor = () => {
     scrollToBottom()
   }, [messages])
 
-  const callAI = async (prompt: string): Promise<string> => {
+  useEffect(() => {
+    setStats({ messages: messages.length, analyzed: 0, generated: 0 })
+  }, [messages])
+
+  const callAPI = async (endpoint: string, data: any): Promise<string> => {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`,
         },
-        body: JSON.stringify({
-          model: 'gpt-3.5-turbo',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are an expert code assistant. Help with coding questions, debugging, and code generation. Always provide clear, concise answers with code examples when relevant.',
-            },
-            { role: 'user', content: prompt },
-          ],
-          max_tokens: 1000,
-          temperature: 0.7,
-        }),
+        body: JSON.stringify(data),
       })
 
       if (!response.ok) {
-        throw new Error('AI API request failed')
+        const error = await response.json()
+        throw new Error(error.error || 'API request failed')
       }
 
-      const data = await response.json()
-      return data.choices[0].message.content
-    } catch (error) {
-      console.error('AI Error:', error)
-      return 'Maaf, ada error saat menghubungi AI. Pastikan NEXT_PUBLIC_OPENAI_API_KEY sudah diatur di environment variables.'
+      const result = await response.json()
+      return result.data
+    } catch (error: any) {
+      console.error('API Error:', error.message)
+      throw error
     }
   }
 
@@ -75,23 +78,68 @@ const Editor = () => {
       role: 'user',
       content: input,
       timestamp: new Date(),
+      type: actionMode,
     }
 
     setMessages((prev) => [...prev, userMessage])
     setInput('')
     setLoading(true)
 
-    const aiResponse = await callAI(input)
+    try {
+      let aiResponse: string
 
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      role: 'assistant',
-      content: aiResponse,
-      timestamp: new Date(),
+      switch (actionMode) {
+        case 'analyze':
+          aiResponse = await callAPI('/api/analyze-code', {
+            code,
+            language,
+          })
+          break
+        case 'generate':
+          aiResponse = await callAPI('/api/generate-code', {
+            prompt: input,
+            language,
+          })
+          break
+        case 'explain':
+          aiResponse = await callAPI('/api/explain-code', {
+            code,
+            language,
+            level: 'intermediate',
+          })
+          break
+        default:
+          const messages = [
+            {
+              role: 'system',
+              content: 'You are an expert code assistant. Help with coding questions, debugging, and code generation.',
+            },
+            { role: 'user', content: input },
+          ]
+          aiResponse = await callAPI('/api/chat', { messages })
+      }
+
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: new Date(),
+        type: actionMode,
+      }
+
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (error: any) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `❌ Error: ${error.message}. Pastikan backend server running di ${API_URL}`,
+        timestamp: new Date(),
+        type: actionMode,
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setLoading(false)
     }
-
-    setMessages((prev) => [...prev, assistantMessage])
-    setLoading(false)
   }
 
   const copyCode = () => {
@@ -100,15 +148,89 @@ const Editor = () => {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  const actionButtons = [
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'analyze', label: 'Analyze', icon: Zap },
+    { id: 'generate', label: 'Generate', icon: Sparkles },
+    { id: 'explain', label: 'Explain', icon: Code2 },
+  ]
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black text-white">
+      {/* Left Sidebar */}
+      <div className="w-64 border-r border-slate-800 bg-slate-950/80 flex flex-col">
+        <div className="p-4 border-b border-slate-800">
+          <h2 className="font-bold text-sm mb-2">MODE</h2>
+          <div className="space-y-2">
+            {actionButtons.map((btn) => {
+              const Icon = btn.icon
+              return (
+                <button
+                  key={btn.id}
+                  onClick={() => setActionMode(btn.id as ActionMode)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition ${
+                    actionMode === btn.id
+                      ? 'bg-blue-600 text-white'
+                      : 'text-slate-300 hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {btn.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="p-4 border-b border-slate-800">
+          <h2 className="font-bold text-sm mb-2">LANGUAGE</h2>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="javascript">JavaScript</option>
+            <option value="typescript">TypeScript</option>
+            <option value="python">Python</option>
+            <option value="java">Java</option>
+            <option value="cpp">C++</option>
+            <option value="csharp">C#</option>
+            <option value="rust">Rust</option>
+            <option value="go">Go</option>
+          </select>
+        </div>
+
+        <div className="p-4 border-b border-slate-800 flex-1">
+          <h2 className="font-bold text-sm mb-3">STATS</h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Messages:</span>
+              <span className="text-blue-400">{stats.messages}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Analyzed:</span>
+              <span className="text-green-400">{stats.analyzed}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Generated:</span>
+              <span className="text-purple-400">{stats.generated}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 text-xs text-slate-500">
+          <p>API URL: {API_URL}</p>
+          <p className="mt-2">Backend must be running for AI features</p>
+        </div>
+      </div>
+
       {/* Editor Panel */}
       <div className="flex-1 flex flex-col border-r border-slate-800">
         {/* Header */}
         <div className="h-14 border-b border-slate-800 flex items-center justify-between px-6 bg-slate-900/50">
           <div className="flex items-center gap-3">
             <Code2 className="w-5 h-5 text-blue-400" />
-            <span className="font-semibold">Editor</span>
+            <span className="font-semibold">Code Editor</span>
           </div>
           <button
             onClick={copyCode}
@@ -117,7 +239,7 @@ const Editor = () => {
             {copied ? (
               <>
                 <Check className="w-4 h-4 text-green-400" />
-                Copied
+                Copied!
               </>
             ) : (
               <>
@@ -161,13 +283,21 @@ const Editor = () => {
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
+                  className={`max-w-xs px-4 py-3 rounded-lg ${
                     msg.role === 'user'
                       ? 'bg-blue-600 text-white'
+                      : msg.type === 'analysis'
+                      ? 'bg-yellow-900/40 text-yellow-100'
+                      : msg.type === 'generation'
+                      ? 'bg-purple-900/40 text-purple-100'
+                      : msg.type === 'explanation'
+                      ? 'bg-green-900/40 text-green-100'
                       : 'bg-slate-800 text-slate-100'
                   }`}
                 >
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words max-w-xs">
+                    {msg.content}
+                  </p>
                   <span className="text-xs opacity-70 mt-1 block">
                     {msg.timestamp.toLocaleTimeString('id-ID', {
                       hour: '2-digit',
@@ -183,7 +313,7 @@ const Editor = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex justify-start"
               >
-                <div className="bg-slate-800 px-4 py-2 rounded-lg">
+                <div className="bg-slate-800 px-4 py-3 rounded-lg">
                   <div className="flex gap-1">
                     <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" />
                     <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce [animation-delay:0.2s]" />
@@ -203,8 +333,8 @@ const Editor = () => {
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Tanya AI..."
+              onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+              placeholder={`${actionMode === 'chat' ? 'Tanya AI...' : actionMode.charAt(0).toUpperCase() + actionMode.slice(1) + '...'}`}
               disabled={loading}
               className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 disabled:opacity-50"
             />
@@ -213,13 +343,11 @@ const Editor = () => {
               disabled={loading || !input.trim()}
               className="p-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm bg-slate-800/50 hover:bg-slate-700 rounded-lg transition">
-              <Paperclip className="w-4 h-4" />
-              File
+              {loading ? (
+                <RotateCw className="w-4 h-4 animate-spin" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>
